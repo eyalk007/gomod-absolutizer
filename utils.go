@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/mod/modfile"
 )
@@ -79,7 +80,8 @@ func parseGoMod(goModPath string) (result *modfile.File, errs []error) {
 		return nil, append(errs, err)
 	}
 
-	result, err = modfile.Parse(goModPath, goModContent, nil)
+	sanitized := sanitizeGoMod(goModContent)
+	result, err = modfile.Parse(goModPath, sanitized, nil)
 	if err != nil {
 		return nil, append(errs, err)
 	}
@@ -136,4 +138,21 @@ func exitIfError(err error) {
 	}
 	fmt.Println(err.Error())
 	os.Exit(1)
+}
+
+func sanitizeGoMod(data []byte) []byte {
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "go ") {
+			parts := strings.Fields(line)
+			if len(parts) == 2 {
+				versionParts := strings.Split(parts[1], ".")
+				if len(versionParts) >= 2 {
+					lines[i] = "go " + versionParts[0] + "." + versionParts[1]
+				}
+			}
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
 }
